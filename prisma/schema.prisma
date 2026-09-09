@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================
+// FR1: Voucher Creation
+// ==============================
+model Voucher {
+  id             String   @id @default(cuid())
+  projectCode    String
+  groupBatch     String
+  batchNumber    String
+  voucherNumber  String   @unique
+  securityCode   String
+  mrp            Float
+  validityDate   DateTime
+  status         String   @default("created")
+  createdAt      DateTime @default(now())
+
+  distributionItems DistributionItem[]
+  claims             Claim[]
+  salesReturns       SalesReturn[]
+}
+
+// ==============================
+// FR2: Distributor Master (CRUD)
+// ==============================
+model Distributor {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  businessType    String
+  proprietorName  String
+  designation     String?
+  address         String
+  contactNo       String?
+  email           String?
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+
+  distributions DistributionTransaction[]
+  salesReturns  SalesReturn[]
+}
+
+// ==============================
+// FR3: Distribution Transaction
+// ==============================
+model DistributionTransaction {
+  id              String   @id @default(cuid())
+  invoiceNo       String   @unique
+  distributorId   String
+  distributor     Distributor @relation(fields: [distributorId], references: [id])
+  date            DateTime @default(now())
+  quantity        Int
+  invoiceAmount   Float
+  items           DistributionItem[]
+}
+
+model DistributionItem {
+  id             String   @id @default(cuid())
+  transactionId  String
+  transaction    DistributionTransaction @relation(fields: [transactionId], references: [id])
+  voucherId      String
+  voucher        Voucher  @relation(fields: [voucherId], references: [id])
+}
+
+// ==============================
+// FR4: VSP Master + payment terms
+// ==============================
+model VSP {
+  id                     String   @id @default(cuid())
+  code                   String   @unique
+  name                   String
+  physicalAddress        String
+  communicationAddress   String
+  contactPerson          String?
+  contactNo              String?
+  email                  String?
+  status                 String   @default("active")
+
+  paymentMode            String?
+  bankAccountNo          String?
+  bankName               String?
+  paymentType            String?
+  validFrom              DateTime?
+  validTo                DateTime?
+  firstVisitFee          Float    @default(0)
+  firstFollowUpFee       Float    @default(0)
+  secondFollowUpFee      Float    @default(0)
+  labFee                 Float    @default(0)
+
+  mismatchCount          Int      @default(0)
+
+  claims                 Claim[]
+}
+
+// ==============================
+// FR5: Claim Entry + Amount Calculation
+// ==============================
+model Claim {
+  id               String   @id @default(cuid())
+  claimNo          String   @unique
+  treatmentFormNo  String
+  submittedDate    DateTime @default(now())
+
+  vspId            String
+  vsp              VSP      @relation(fields: [vspId], references: [id])
+
+  voucherId        String
+  voucher          Voucher  @relation(fields: [voucherId], references: [id])
+
+  visitType        String
+  patientType      String
+  patientName      String
+  age              Int
+  gender           String
+  address          String
+  doctorName       String
+
+  drugsQty         Int      @default(0)
+  drugsCost        Float    @default(0)
+
+  thumbprintMismatch Boolean @default(false)
+
+  claimAmount      Float    @default(0)
+  claimStatus      String   @default("accepted")
+}
+
+// ==============================
+// FR6: Voucher Sales Return
+// ==============================
+model SalesReturn {
+  id             String   @id @default(cuid())
+  distributorId  String
+  distributor    Distributor @relation(fields: [distributorId], references: [id])
+  voucherId      String
+  voucher        Voucher  @relation(fields: [voucherId], references: [id])
+  date           DateTime @default(now())
+  returnAmount   Float
+}
+
+// ==============================
+// FR7: User Groups + Users + Permissions
+// ==============================
+model UserGroup {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions Permission[]
+  users       User[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       UserGroup @relation(fields: [groupId], references: [id])
+  screenName  String
+  canNew      Boolean  @default(false)
+  canEdit     Boolean  @default(false)
+  canDelete   Boolean  @default(false)
+  canView     Boolean  @default(true)
+  canPrint    Boolean  @default(false)
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  groupId   String
+  group     UserGroup @relation(fields: [groupId], references: [id])
+  createdAt DateTime  @default(now())
+}
